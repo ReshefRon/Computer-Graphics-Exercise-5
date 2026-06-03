@@ -64,8 +64,8 @@ function createBowlingLane() {
 
   // --- Lane body: structural box (Z=0 to Z=-60), sides only ---
   const laneBodyMat = new THREE.MeshPhongMaterial({
-    color: 0x8d6a46,
-    shininess: 25,
+    color: 0xeaeaea,
+    shininess: 60,
     specular: new THREE.Color(0x2a2020)
   });
   const laneBody = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.2, 60), laneBodyMat);
@@ -84,7 +84,7 @@ function createBowlingLane() {
   const laneTopLength = 56.5;
   const laneTop = new THREE.Mesh(new THREE.PlaneGeometry(3.5, laneTopLength), laneTopMat);
   laneTop.rotation.x = -Math.PI / 2;
-  laneTop.position.set(0, 0.101, -laneTopLength / 2);
+  laneTop.position.set(0, 0.11, -laneTopLength / 2);
   laneTop.receiveShadow = true;
   scene.add(laneTop);
 
@@ -98,7 +98,7 @@ function createBowlingLane() {
   const deckLength = 3.5;
   const deckTop = new THREE.Mesh(new THREE.PlaneGeometry(3.5, deckLength), deckTopMat);
   deckTop.rotation.x = -Math.PI / 2;
-  deckTop.position.set(0, 0.102, -56.5 - deckLength / 2);
+  deckTop.position.set(0, 0.112, -56.5 - deckLength / 2);
   deckTop.receiveShadow = true;
   scene.add(deckTop);
 
@@ -123,7 +123,7 @@ function createBowlingLane() {
   });
   const approachTop = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 15), approachTopMat);
   approachTop.rotation.x = -Math.PI / 2;
-  approachTop.position.set(0, 0.101, 7.5);
+  approachTop.position.set(0, 0.11, 7.5);
   approachTop.receiveShadow = true;
   scene.add(approachTop);
 
@@ -486,6 +486,7 @@ function setupUI() {
 // Create all elements
 createBowlingLane();
 createBackWall();
+createHangingNeonSign();
 createBowlingPins();
 createBowlingBall();
 setupUI();
@@ -498,12 +499,30 @@ camera.applyMatrix4(cameraTranslate);
 // Orbit controls – must be `let` so handleKeyDown can re-instantiate it on toggle
 const controls = new OrbitControls(camera, renderer.domElement);
 let isOrbitEnabled = true;
+controls.minDistance = 0.1;   // מאפשר לך להתקרב כמעט עד אפס סנטימטר מהנקודה (ברירת המחדל חוסמת הרבה לפני)
+controls.maxDistance = 150;
 
 // Handle key events
 function handleKeyDown(e) {
+  // מקש O - הפעלה/הקפאה של תנועת המצלמה
   if (e.code === "KeyO") {
     isOrbitEnabled = !isOrbitEnabled;
-    controls.enabled = isOrbitEnabled; // זה מה שמקפיא את המצלמה בתוך הספרייה
+    controls.enabled = isOrbitEnabled;
+  }
+  
+  // מקש C - התייצבות מושלמת מול שלט הניאון לתמונה נורמלית!
+  if (e.code === "KeyC") {
+    // 1. נסובב את המצלמה שתסתכל ישר קדימה לאורך ציר ה-Z
+    controls.reset(); 
+    
+    // 2. נזיז את המצלמה למיקום פרונטלי מושלם: במרכז (X=0), בגובה השלט (Y=4.0), וקצת לפניו (Z=-18)
+    camera.position.set(0, 4.0, -18);
+    
+    // 3. נכוון את נקודת המטרה של העכבר למרכז השלט (Z=-30, גובה Y=4.0)
+    controls.target.set(0, 4.0, -30);
+    
+    // 4. נעדכן את ה-controls כדי שהשינויים ייכנסו לתוקף מיד
+    controls.update();
   }
 }
 
@@ -608,4 +627,76 @@ function animate() {
   renderer.render(scene, camera);
 }
 
+function createHangingNeonSign() {
+  // 1. קנבס ברזולוציה גבוהה
+  const canvas = document.createElement('canvas');
+  canvas.width = 2048;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.font = "bold 160px 'Impact', 'Arial Black', sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  // 📉 הורדת הזוהר החיצוני למינימום (טשטוש קטן מאוד של 8 פיקסלים במקום 40)
+  ctx.shadowColor = "#ff007f";
+  ctx.shadowBlur = 8; 
+  ctx.strokeStyle = "#ff007f";
+  ctx.lineWidth = 20; 
+  ctx.strokeText("Ron x Dor  Bowling", canvas.width / 2, canvas.height / 2);
+
+  // ליבה פנימית חדה כמעט בלי צל פנימי
+  ctx.shadowBlur = 2;
+  ctx.shadowColor = "#ffffff";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText("Ron x Dor  Bowling", canvas.width / 2, canvas.height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  texture.needsUpdate = true;
+
+  // 📉 החלשת עוצמת האור העצמי (הורדה מ-2.2 ל-1.1) כדי שהצבעים לא יהיו שרופים
+  const signMat = new THREE.MeshPhongMaterial({
+    map: texture,
+    transparent: true,
+    emissive: new THREE.Color(0xff007f),
+    emissiveMap: texture,
+    emissiveIntensity: 1.1, 
+    side: THREE.DoubleSide
+  });
+
+  // 2. 📐 גיאומטריית השלט (נשארת גדולה וברורה כפי שביקשת)
+  const signGeo = new THREE.PlaneGeometry(5.2, 1.3);
+  const neonSign = new THREE.Mesh(signGeo, signMat);
+  neonSign.position.set(0, 4.2, -30);
+  scene.add(neonSign);
+
+  // 3. התאמת קונסטרוקציית המתכת לגודל השלט החדש
+  const metalMat = new THREE.MeshPhongMaterial({
+    color: 0x222222,
+    shininess: 80,
+    specular: 0x555555
+  });
+
+  // א. שני עמודים אנכיים בצדדים (X=2.5 כדי לפנות מקום לשלט הרחב)
+  const pillarGeo = new THREE.CylinderGeometry(0.06, 0.06, 5.5, 16); // הוגבה ל-5.5
+  [-1, 1].forEach(side => {
+    const pillar = new THREE.Mesh(pillarGeo, metalMat);
+    pillar.position.set(side * 2.5, 2.75, -30); // ממורכז ב-Y=2.75
+    pillar.castShadow = true;
+    pillar.receiveShadow = true;
+    scene.add(pillar);
+  });
+
+  // ב. קורה אופקית עליונה (אורך הוגדל ל-5.0 בהתאם)
+  const beamGeo = new THREE.CylinderGeometry(0.04, 0.04, 5.0, 16);
+  const beam = new THREE.Mesh(beamGeo, metalMat);
+  beam.rotation.z = Math.PI / 2;
+  beam.position.set(0, 5.5, -30); // יושב בראש העמודים ב-5.5
+  beam.castShadow = true;
+  scene.add(beam);
+}
 animate();
