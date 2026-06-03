@@ -35,28 +35,20 @@ npx serve .
 
 ---
 
-## Implementation Features & Enhancements
+### Implementation Features & Enhancements
 
-- **Full 10-pin triangular layout** – Accurate bowling-pin silhouettes built with `THREE.LatheGeometry` from a 16-point radial profile, plus red neck stripes placed via `THREE.TorusGeometry`/`CylinderGeometry` offset to clear the body surface. All 10 pins are positioned using the standard 1-2-3-4 equilateral-triangle spacing (0.866-unit row depth).
-
-- **Optimised static bowling ball (radius 0.35)** – Cobalt-blue `SphereGeometry` with three precisely oriented embedded finger holes. Each hole is a short `CylinderGeometry` whose outer cap is flush with the sphere surface, achieved by offsetting the cylinder centre inward by half its depth along the surface normal.
-
-- **Advanced Procedural Wood Texture Engine** – `createWoodTexture()` generates distinct grain patterns for three surface zones at runtime using a seeded Mulberry32 PRNG (`createSeededRandom`), per-board lightness variation (`shiftHexLightness`), randomised grain-streak passes, and optional lateral edge darkening. Seeds are fixed so textures are deterministic across reloads:
-  - Lane: `#d4ae74` (light maple, shininess 95)
-  - Approach: `#c89e65` (dark walnut with edge vignette, shininess 70)
-  - Pin Deck: `#d9b884` (warm maple, shininess 85)
-
-- **Custom "Ron x Dor Bowling" hanging neon sign** – Rendered on a 2048×512 high-DPI canvas with a layered two-pass technique (pink glow stroke + sharp white core). Applied as both a diffuse map and an emissive map (`emissiveIntensity: 1.1`) on a `DoubleSide` `PlaneGeometry`. Suspended from dark-metal cylindrical pillars and a cross-beam.
-
-- **Responsive 10-frame UI scorecard** – Injected as an absolute CSS overlay (top-centre). Frames 1–9 have two shot slots; frame 10 has three (for strike/spare bonus ball). A persistent controls card (bottom-left) lists all active and future hotkeys.
-
-- **Enhanced OrbitControls** – `screenSpacePanning` enabled, inertial damping (`dampingFactor: 0.08`), zoom unlocked (`minDistance: 0.1`, `maxDistance: 150`), and two camera hotkeys:
-  - **O** – toggle orbit camera on / off
-  - **C** – snap to a frontal view centred on the neon sign
-
-- **Clean, artifact-free shadow maps** – `PCFSoftShadowMap`-quality 2048×2048 shadow textures calibrated to the lane frustum; markings (foul line, arrows, dots) are Y-offset above their parent planes (`+0.002` to `+0.012`) to resolve Z-fighting without polygon-offset hacks.
-
----
+* **Full 10-Pin Layout:** Created 10 bowling pins with a realistic, smooth 3D curved shape. Each pin includes the classic red neck stripe, carefully designed to sit perfectly on the pin without visual glitching. The pins are arranged in a perfect, standard 10-pin triangle layout.
+* **Optimized Bowling Ball:** Designed a cobalt-blue bowling ball (0.35 radius) with three realistic finger holes. The holes are angled and pushed slightly inward so they fit seamlessly into the ball’s surface without sticking out.
+* **Procedural Wood Textures:** Built a custom engine that generates realistic wood textures from scratch using code, meaning no external images are downloaded. It automatically creates individual wood boards, random wood grain lines, and subtle color variations. Each area has its own unique style:
+  * **Lane:** Light maple wood with a polished look.
+  * **Approach:** Dark walnut wood with elegant darkened edges for a high-contrast look.
+  * **Pin Deck:** Warm maple wood designed to showcase the pins clearly.
+* **Hanging Neon Sign:** Added a custom "Ron x Dor Bowling" neon sign hanging right over the middle of the lane. The text is drawn in ultra-high resolution so it stays perfectly sharp, and it uses a special glowing effect that makes it look like a real light-up sign. It is held up by a detailed dark-metal frame and pillars.
+* **10-Frame Scorecard UI:** Created a clean interface that floats on top of the screen. It features a standard 10-frame bowling scorecard (with 2 shots for frames 1–9, and 3 shots for the 10th frame to handle strikes and spares), alongside a handy controls card showing all keyboard shortcuts.
+* **Smoother Camera Controls:** Improved the camera movement (`OrbitControls`) to feel smooth and natural instead of stiff. You can now zoom in incredibly close to inspect the pins or the ball without getting blocked. Added two helpful keyboard shortcuts:
+  * **O:** Freezes/unfreezes the camera view.
+  * **C:** Automatically centers and straightens the camera directly in front of the neon sign for a perfect screenshot.
+* **Clean Real-Time Shadows:** Calibrated the lights and shadows to ensure everything looks realistic and soft, without jagged edges. All lane markings (the red foul line, arrows, and dots) were slightly raised to completely fix any flickering or overlapping glitches on the floor.
 
 
 ## External Assets
