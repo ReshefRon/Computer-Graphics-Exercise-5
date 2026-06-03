@@ -14,20 +14,20 @@ const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
 scene.add(ambientLight);
 
 const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-directionalLight.position.set(5, 20, -20);
-directionalLight.target.position.set(0, 0, -58.5);
+directionalLight.position.set(5, 25, 20);
+directionalLight.target.position.set(0, 0, -25);
 scene.add(directionalLight.target);
 scene.add(directionalLight);
 
 // Enable shadows
 renderer.shadowMap.enabled = true;
 directionalLight.castShadow = true;
-directionalLight.shadow.camera.left = -5;
+directionalLight.shadow.camera.left = -6;
 directionalLight.shadow.camera.right = 5;
-directionalLight.shadow.camera.top = 25;
-directionalLight.shadow.camera.bottom = -5;
+directionalLight.shadow.camera.top = 30;
+directionalLight.shadow.camera.bottom = -30;
 directionalLight.shadow.camera.near = 0.5;
-directionalLight.shadow.camera.far = 100; 
+directionalLight.shadow.camera.far = 120; 
 
 directionalLight.shadow.mapSize.width = 2048;
 directionalLight.shadow.mapSize.height = 2048;
@@ -295,7 +295,8 @@ function createBowlingBall() {
     hole.position.copy(dir).multiplyScalar(0.35).addScaledVector(inward, 0.04);
     // tilt cylinder axis to point toward sphere centre
     hole.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), inward);
-
+    hole.castShadow = false; 
+    hole.receiveShadow = false;
     bowlingBallGroup.add(hole);
   }
 
