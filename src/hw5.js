@@ -1,45 +1,93 @@
-import {OrbitControls} from './OrbitControls.js'
+import { OrbitControls } from './OrbitControls.js';
 
+// ── Scene ─────────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
-// Set background color
-scene.background = new THREE.Color(0x1a1a2e);
 
-// Add lights to the scene
+// ── Lights ────────────────────────────────────────────────────────────────────
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
 scene.add(ambientLight);
 
 const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
 directionalLight.position.set(5, 25, 20);
 directionalLight.target.position.set(0, 0, -25);
-scene.add(directionalLight.target);
-scene.add(directionalLight);
-
-// Enable shadows
-renderer.shadowMap.enabled = true;
 directionalLight.castShadow = true;
-directionalLight.shadow.camera.left = -6;
-directionalLight.shadow.camera.right = 5;
-directionalLight.shadow.camera.top = 30;
+directionalLight.shadow.camera.left   = -6;
+directionalLight.shadow.camera.right  =  5;
+directionalLight.shadow.camera.top    =  30;
 directionalLight.shadow.camera.bottom = -30;
-directionalLight.shadow.camera.near = 0.5;
-directionalLight.shadow.camera.far = 120; 
-
-directionalLight.shadow.mapSize.width = 2048;
+directionalLight.shadow.camera.near   =  0.5;
+directionalLight.shadow.camera.far    =  120;
+directionalLight.shadow.mapSize.width  = 2048;
 directionalLight.shadow.mapSize.height = 2048;
+scene.add(directionalLight);
+scene.add(directionalLight.target);
 
-function degrees_to_radians(degrees) {
-  var pi = Math.PI;
-  return degrees * (pi/180);
+// ── Build scene ───────────────────────────────────────────────────────────────
+createBowlingLane();
+createBackWall();
+createHangingNeonSign();
+createBowlingPins();
+createBowlingBall();
+setupUI();
+
+// ── Camera: default bowler's-eye starting position ────────────────────────────
+camera.position.set(0, 5, 12);
+
+// ── Orbit controls ────────────────────────────────────────────────────────────
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping      = true;
+controls.dampingFactor      = 0.08;
+controls.screenSpacePanning = true;
+controls.minDistance        = 0.1;
+controls.maxDistance        = 150;
+
+let isOrbitEnabled = true;
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+function handleKeyDown(e) {
+  if (e.code === 'KeyO') {
+    // Toggle orbit camera on / off
+    isOrbitEnabled = !isOrbitEnabled;
+    controls.enabled = isOrbitEnabled;
+  }
+
+  if (e.code === 'KeyC') {
+    // Snap to a frontal view centred on the neon sign
+    camera.position.set(0, 4.0, -18);
+    controls.target.set(0, 4.0, -30);
+    controls.update();
+  }
 }
+document.addEventListener('keydown', handleKeyDown);
 
-// Create bowling lane
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ── Render loop ───────────────────────────────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+  if (isOrbitEnabled) controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scene builders
+// ─────────────────────────────────────────────────────────────────────────────
+
 function createBowlingLane() {
-  // --- Procedural wood textures for each surface zone ---
+  // Three distinct wood textures mark each surface zone visually
   const laneTexture = createWoodTexture({
     baseColor: '#d4ae74',
     boardCount: 20,
@@ -62,7 +110,7 @@ function createBowlingLane() {
     seed: 303
   });
 
-  // --- Lane body: structural box (Z=0 to Z=-60), sides only ---
+  // Lane body: structural box (Z=0 to Z=-60); side faces use a solid colour
   const laneBodyMat = new THREE.MeshPhongMaterial({
     color: 0xeaeaea,
     shininess: 60,
@@ -74,7 +122,7 @@ function createBowlingLane() {
   laneBody.castShadow = true;
   scene.add(laneBody);
 
-  // --- Lane top surface (Z=0 to Z=-56.5, light maple #d4ae74) ---
+  // Lane top (Z=0 to Z=-56.5): light maple wood grain
   const laneTopMat = new THREE.MeshPhongMaterial({
     color: 0xffffff,
     map: laneTexture,
@@ -88,7 +136,7 @@ function createBowlingLane() {
   laneTop.receiveShadow = true;
   scene.add(laneTop);
 
-  // --- Pin deck top surface (Z=-56.5 to Z=-60, warmer tone #d9b884) ---
+  // Pin deck top (Z=-56.5 to Z=-60): warmer maple tone to distinguish the deck zone
   const deckTopMat = new THREE.MeshPhongMaterial({
     color: 0xffffff,
     map: deckTexture,
@@ -102,7 +150,7 @@ function createBowlingLane() {
   deckTop.receiveShadow = true;
   scene.add(deckTop);
 
-  // --- Approach body: structural box (Z=0 to Z=+15), sides only ---
+  // Approach body (Z=0 to Z=+15)
   const approachBodyMat = new THREE.MeshPhongMaterial({
     color: 0x7b5c3c,
     shininess: 18,
@@ -114,7 +162,7 @@ function createBowlingLane() {
   approachBody.castShadow = true;
   scene.add(approachBody);
 
-  // --- Approach top surface (Z=0 to Z=+15, darker tone #c89e65) ---
+  // Approach top (Z=0 to Z=+15): dark walnut tone with edge darkening toward gutters
   const approachTopMat = new THREE.MeshPhongMaterial({
     color: 0xffffff,
     map: approachTexture,
@@ -127,7 +175,7 @@ function createBowlingLane() {
   approachTop.receiveShadow = true;
   scene.add(approachTop);
 
-  // --- Gutters – recessed below lane top, full lane length ---
+  // Gutters: dark recessed channels on both sides of the lane
   const gutterWidth = 0.5;
   const gutterGeo = new THREE.BoxGeometry(gutterWidth, 0.15, 60);
   const gutterMat = new THREE.MeshPhongMaterial({
@@ -143,7 +191,7 @@ function createBowlingLane() {
     scene.add(gutter);
   });
 
-  // --- Foul line – thin red stripe at Z=0 ---
+  // Foul line: thin red bar at Z=0; Y=0.106 clears the lane-top plane to avoid Z-fighting
   const foulLineGeo = new THREE.BoxGeometry(3.5, 0.01, 0.08);
   const foulLineMat = new THREE.MeshPhongMaterial({ color: 0xff1a1a, shininess: 20 });
   const foulLine = new THREE.Mesh(foulLineGeo, foulLineMat);
@@ -152,12 +200,12 @@ function createBowlingLane() {
   foulLine.castShadow = true;
   scene.add(foulLine);
 
-  // --- Lane arrows – 5 amber triangles at Z=-15 ---
+  // Lane arrows: 5 amber triangles at Z=-15; Y=0.102 floats above the lane-top plane
   const arrowShape = new THREE.Shape();
-  arrowShape.moveTo(0, 0.3);
+  arrowShape.moveTo( 0,     0.3 );
   arrowShape.lineTo(-0.08, -0.15);
-  arrowShape.lineTo(0.08, -0.15);
-  arrowShape.lineTo(0, 0.3);
+  arrowShape.lineTo( 0.08, -0.15);
+  arrowShape.lineTo( 0,     0.3 );
 
   const arrowGeo = new THREE.ShapeGeometry(arrowShape);
   const arrowMat = new THREE.MeshPhongMaterial({
@@ -172,7 +220,7 @@ function createBowlingLane() {
     scene.add(arrow);
   });
 
-  // --- Approach dots – rows at Z=7 and Z=12 ---
+  // Approach dots: two rows (Z=7 and Z=12) of 5 dots each
   const dotGeo = new THREE.CircleGeometry(0.06, 16);
   const dotMat = new THREE.MeshPhongMaterial({
     color: 0x8B4513,
@@ -190,72 +238,67 @@ function createBowlingLane() {
 }
 
 function createBowlingPins() {
-  // Half cross-section profile for LatheGeometry.
-  // Each Vector2 is (radius, height) in pin-local space.
-  // First/last point at radius=0 closes the bottom and top caps naturally.
+  // LatheGeometry profile: (radius, height) pairs swept around the Y axis.
+  // Closing at radius=0 caps the top and bottom geometry cleanly.
   const pinProfile = [
-    new THREE.Vector2(0.00, 0.00),   // base centre – closes bottom
-    new THREE.Vector2(0.09, 0.00),   // base rim
-    new THREE.Vector2(0.11, 0.03),   // lower body
-    new THREE.Vector2(0.17, 0.12),   // body widening
-    new THREE.Vector2(0.195, 0.25),  // approaching belly
-    new THREE.Vector2(0.20,  0.35),  // widest point – belly
-    new THREE.Vector2(0.195, 0.45),  // past belly, narrowing
-    new THREE.Vector2(0.17,  0.58),  // upper body
-    new THREE.Vector2(0.13,  0.72),  // narrowing toward neck
-    new THREE.Vector2(0.09,  0.85),  // neck – narrowest point
-    new THREE.Vector2(0.095, 0.92),  // base of head
-    new THREE.Vector2(0.13,  1.02),  // head widening
-    new THREE.Vector2(0.135, 1.10),  // head peak
-    new THREE.Vector2(0.11,  1.19),  // top of head, tapering
-    new THREE.Vector2(0.04,  1.24),  // near tip
-    new THREE.Vector2(0.00,  1.25),  // tip – closes top
+    new THREE.Vector2(0.00,  0.00),
+    new THREE.Vector2(0.09,  0.00),
+    new THREE.Vector2(0.11,  0.03),
+    new THREE.Vector2(0.17,  0.12),
+    new THREE.Vector2(0.195, 0.25),
+    new THREE.Vector2(0.20,  0.35),
+    new THREE.Vector2(0.195, 0.45),
+    new THREE.Vector2(0.17,  0.58),
+    new THREE.Vector2(0.13,  0.72),
+    new THREE.Vector2(0.09,  0.85),
+    new THREE.Vector2(0.095, 0.92),
+    new THREE.Vector2(0.13,  1.02),
+    new THREE.Vector2(0.135, 1.10),
+    new THREE.Vector2(0.11,  1.19),
+    new THREE.Vector2(0.04,  1.24),
+    new THREE.Vector2(0.00,  1.25),
   ];
 
   const pinBodyGeo = new THREE.LatheGeometry(pinProfile, 24);
   const pinBodyMat = new THREE.MeshPhongMaterial({ color: 0xffffff, shininess: 100 });
-  const pinBody = new THREE.Mesh(pinBodyGeo, pinBodyMat);
-  pinBody.castShadow = true;
+  const pinBody    = new THREE.Mesh(pinBodyGeo, pinBodyMat);
+  pinBody.castShadow    = true;
   pinBody.receiveShadow = true;
 
-  // Red neck stripe – thin cylinder radius 0.107, just wider than the neck (0.09),
-  // so it sits proud of the pin surface without Z-fighting. Centred at pin-local y=0.875.
+  // Neck stripe: radius (0.107) slightly exceeds the narrowest neck point (0.09) to avoid Z-fighting
   const stripeGeo = new THREE.CylinderGeometry(0.107, 0.107, 0.075, 24);
   const stripeMat = new THREE.MeshPhongMaterial({ color: 0xcc0000, shininess: 60 });
-  const stripe = new THREE.Mesh(stripeGeo, stripeMat);
-  stripe.position.y = 0.875;
-  stripe.castShadow = true;
+  const stripe    = new THREE.Mesh(stripeGeo, stripeMat);
+  stripe.position.y    = 0.875;
+  stripe.castShadow    = true;
   stripe.receiveShadow = true;
 
-  // Build template group ONCE; .clone() creates independent copies for each pin
+  // Template group cloned once per pin; traverse sets shadow flags on each copy
   const basePinGroup = new THREE.Group();
   basePinGroup.add(pinBody);
   basePinGroup.add(stripe);
 
-  // Standard 10-pin triangular formation (from assignment spec).
-  // Lane top is Y=0.1; pin base is at local Y=0, so world PIN_Y=0.1 is flush.
+  // Standard 1-2-3-4 triangular formation; row Z-offsets = 0.866 units (equilateral spacing)
   const PIN_Y = 0.1;
   const pinPositions = [
-    { x:  0.0, z: -57.000 },  // 1 – head pin (centre, aligns with approach-dot funnel)
-    { x: -0.5, z: -57.866 },  // 2
-    { x:  0.5, z: -57.866 },  // 3
-    { x: -1.0, z: -58.732 },  // 4
-    { x:  0.0, z: -58.732 },  // 5
-    { x:  1.0, z: -58.732 },  // 6
-    { x: -1.5, z: -59.598 },  // 7
-    { x: -0.5, z: -59.598 },  // 8
-    { x:  0.5, z: -59.598 },  // 9
-    { x:  1.5, z: -59.598 },  // 10
+    { x:  0.0, z: -57.000 },
+    { x: -0.5, z: -57.866 },
+    { x:  0.5, z: -57.866 },
+    { x: -1.0, z: -58.732 },
+    { x:  0.0, z: -58.732 },
+    { x:  1.0, z: -58.732 },
+    { x: -1.5, z: -59.598 },
+    { x: -0.5, z: -59.598 },
+    { x:  0.5, z: -59.598 },
+    { x:  1.5, z: -59.598 },
   ];
 
   pinPositions.forEach(({ x, z }) => {
     const pin = basePinGroup.clone();
     pin.position.set(x, PIN_Y, z);
-    // traverse() walks every node in the cloned subtree (body + stripe) and
-    // sets shadow flags explicitly, rather than relying on clone() propagation.
     pin.traverse(child => {
       if (child.isMesh) {
-        child.castShadow = true;
+        child.castShadow    = true;
         child.receiveShadow = true;
       }
     });
@@ -266,50 +309,35 @@ function createBowlingPins() {
 function createBowlingBall() {
   const bowlingBallGroup = new THREE.Group();
 
-  // --- Main sphere ---
   const ballGeo = new THREE.SphereGeometry(0.35, 32, 32);
   const ballMat = new THREE.MeshPhongMaterial({
-    color: 0x1a2b8a,     // deep cobalt blue – visually distinct against white pins
+    color: 0x1a2b8a,
     shininess: 90,
-    specular: 0x4444cc   // blue-tinted specular highlight
+    specular: 0x4444cc
   });
   bowlingBallGroup.add(new THREE.Mesh(ballGeo, ballMat));
 
-  // --- Finger holes ---
-  // Each hole is a matte-black cylinder (r=0.035, h=0.08) embedded in the sphere.
-  // Strategy:
-  //   1. Pick a direction unit vector pointing to the desired surface spot.
-  //   2. Surface point = dir * radius (0.45).
-  //   3. Cylinder centre = surface point − 0.04*dir  (half the height, pushed inward)
-  //      so the outer cap sits flush with the sphere surface.
-  //   4. Rotate: align cylinder's default +Y axis to the inward direction (−dir).
+  // Finger holes: short dark cylinders whose outer cap sits flush with the sphere surface.
+  // The cylinder centre is offset inward by half its depth from the surface contact point.
   const holeGeo = new THREE.CylinderGeometry(0.035, 0.035, 0.08, 16);
   const holeMat = new THREE.MeshPhongMaterial({ color: 0x111111, shininess: 5 });
 
   function addFingerHole(dx, dy, dz) {
     const dir    = new THREE.Vector3(dx, dy, dz).normalize();
     const inward = dir.clone().negate();
-
-    const hole = new THREE.Mesh(holeGeo, holeMat);
-    // place centre half-depth inside surface so cap is flush
+    const hole   = new THREE.Mesh(holeGeo, holeMat);
     hole.position.copy(dir).multiplyScalar(0.35).addScaledVector(inward, 0.04);
-    // tilt cylinder axis to point toward sphere centre
     hole.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), inward);
-    hole.castShadow = false; 
-    hole.receiveShadow = false;
     bowlingBallGroup.add(hole);
   }
 
-  // Two adjacent holes (ring + middle finger) and one offset thumb hole
-  addFingerHole( 0.25,  0.93,  0.17);  // ring finger  – upper right
-  addFingerHole(-0.25,  0.93,  0.17);  // middle finger – upper left (adjacent)
-  addFingerHole( 0.00,  0.87, -0.30);  // thumb         – offset toward bowler
+  addFingerHole( 0.25,  0.93,  0.17);  // ring finger
+  addFingerHole(-0.25,  0.93,  0.17);  // middle finger
+  addFingerHole( 0.00,  0.87, -0.30);  // thumb
 
-  // --- Positioning ---
-  // Lane top Y=0.1, ball radius=0.35 → centre at Y=0.45 to sit flush on approach
+  // Centre at Y = lane surface (0.1) + radius (0.35) = 0.45
   bowlingBallGroup.position.set(0, 0.45, 12);
 
-  // --- Shadows: walk every mesh in the group in one pass ---
   bowlingBallGroup.traverse(child => {
     if (child.isMesh) {
       child.castShadow    = true;
@@ -321,7 +349,6 @@ function createBowlingBall() {
 }
 
 function setupUI() {
-  // Shared CSS for both overlay panels injected once into <head>
   const style = document.createElement('style');
   style.textContent = `
     .bowling-ui-card {
@@ -331,11 +358,11 @@ function setupUI() {
       border-radius: 8px;
       color: #ffffff;
       font-family: Arial, sans-serif;
-      pointer-events: none;   /* never blocks canvas mouse/touch events */
+      pointer-events: none;
       user-select: none;
     }
 
-    /* ── Scorecard – top-centre ───────────────────────────────────────── */
+    /* Scorecard – top-centre */
     #scorecard {
       top: 16px;
       left: 50%;
@@ -391,7 +418,7 @@ function setupUI() {
       color: rgba(255,255,255,0.2);
     }
 
-    /* ── Controls card – bottom-left ─────────────────────────────────── */
+    /* Controls card – bottom-left */
     #controls-card {
       bottom: 20px;
       left: 20px;
@@ -430,8 +457,7 @@ function setupUI() {
   `;
   document.head.appendChild(style);
 
-  // ── Scorecard ──────────────────────────────────────────────────────────
-  // Frames 1-9: two shot boxes each. Frame 10: three shot boxes.
+  // Frames 1-9: two shot boxes each; frame 10: three boxes (strike/spare bonus ball)
   const framesHTML =
     Array.from({ length: 9 }, (_, i) => `
       <div class="frame">
@@ -458,7 +484,6 @@ function setupUI() {
   scorecard.innerHTML = `<h2>Scorecard</h2><div class="score-frames">${framesHTML}</div>`;
   document.body.appendChild(scorecard);
 
-  // ── Controls card ──────────────────────────────────────────────────────
   const controlsCard = document.createElement('div');
   controlsCard.id = 'controls-card';
   controlsCard.className = 'bowling-ui-card';
@@ -469,64 +494,23 @@ function setupUI() {
       <span class="control-label">Toggle orbit camera</span>
     </div>
     <div class="control-row">
+      <span class="key-badge">C</span>
+      <span class="control-label">Front view – neon sign</span>
+    </div>
+    <div class="control-row">
       <span class="key-badge">Space</span>
-      <span class="control-label future">Launch ball</span>
+      <span class="control-label future">Launch ball (HW06)</span>
     </div>
     <div class="control-row">
       <span class="key-badge">← →</span>
-      <span class="control-label future">Aim</span>
+      <span class="control-label future">Aim (HW06)</span>
     </div>
     <div class="control-row">
       <span class="key-badge">↑ ↓</span>
-      <span class="control-label future">Power</span>
+      <span class="control-label future">Power (HW06)</span>
     </div>`;
   document.body.appendChild(controlsCard);
 }
-
-// Create all elements
-createBowlingLane();
-createBackWall();
-createHangingNeonSign();
-createBowlingPins();
-createBowlingBall();
-setupUI();
-
-// Set camera position for bowler's perspective
-const cameraTranslate = new THREE.Matrix4();
-cameraTranslate.makeTranslation(0, 5, 12);
-camera.applyMatrix4(cameraTranslate);
-
-// Orbit controls – must be `let` so handleKeyDown can re-instantiate it on toggle
-const controls = new OrbitControls(camera, renderer.domElement);
-let isOrbitEnabled = true;
-controls.minDistance = 0.1;   // מאפשר לך להתקרב כמעט עד אפס סנטימטר מהנקודה (ברירת המחדל חוסמת הרבה לפני)
-controls.maxDistance = 150;
-
-// Handle key events
-function handleKeyDown(e) {
-  // מקש O - הפעלה/הקפאה של תנועת המצלמה
-  if (e.code === "KeyO") {
-    isOrbitEnabled = !isOrbitEnabled;
-    controls.enabled = isOrbitEnabled;
-  }
-  
-  // מקש C - התייצבות מושלמת מול שלט הניאון לתמונה נורמלית!
-  if (e.code === "KeyC") {
-    // 1. נסובב את המצלמה שתסתכל ישר קדימה לאורך ציר ה-Z
-    controls.reset(); 
-    
-    // 2. נזיז את המצלמה למיקום פרונטלי מושלם: במרכז (X=0), בגובה השלט (Y=4.0), וקצת לפניו (Z=-18)
-    camera.position.set(0, 4.0, -18);
-    
-    // 3. נכוון את נקודת המטרה של העכבר למרכז השלט (Z=-30, גובה Y=4.0)
-    controls.target.set(0, 4.0, -30);
-    
-    // 4. נעדכן את ה-controls כדי שהשינויים ייכנסו לתוקף מיד
-    controls.update();
-  }
-}
-
-document.addEventListener('keydown', handleKeyDown);
 
 function createBackWall() {
   const wallMat = new THREE.MeshPhongMaterial({
@@ -540,9 +524,81 @@ function createBackWall() {
   scene.add(backWall);
 }
 
+function createHangingNeonSign() {
+  // High-DPI canvas (2048×512) keeps text crisp at lane distances
+  const canvas = document.createElement('canvas');
+  canvas.width  = 2048;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.font         = "bold 160px 'Impact', 'Arial Black', sans-serif";
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Outer pink glow stroke
+  ctx.shadowColor = '#ff007f';
+  ctx.shadowBlur  = 8;
+  ctx.strokeStyle = '#ff007f';
+  ctx.lineWidth   = 20;
+  ctx.strokeText('Ron x Dor  Bowling', canvas.width / 2, canvas.height / 2);
+
+  // Sharp white core with minimal inner bloom
+  ctx.shadowBlur  = 2;
+  ctx.shadowColor = '#ffffff';
+  ctx.fillStyle   = '#ffffff';
+  ctx.fillText('Ron x Dor  Bowling', canvas.width / 2, canvas.height / 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.minFilter  = THREE.LinearMipmapLinearFilter;
+  texture.magFilter  = THREE.LinearFilter;
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  texture.needsUpdate = true;
+
+  const signMat = new THREE.MeshPhongMaterial({
+    map: texture,
+    transparent: true,
+    emissive: new THREE.Color(0xff007f),
+    emissiveMap: texture,
+    emissiveIntensity: 1.1,
+    side: THREE.DoubleSide
+  });
+
+  const neonSign = new THREE.Mesh(new THREE.PlaneGeometry(5.2, 1.3), signMat);
+  neonSign.position.set(0, 4.2, -30);
+  scene.add(neonSign);
+
+  // Metal mounting hardware: two vertical pillars + one horizontal cross-beam
+  const metalMat = new THREE.MeshPhongMaterial({
+    color: 0x222222,
+    shininess: 80,
+    specular: 0x555555
+  });
+
+  const pillarGeo = new THREE.CylinderGeometry(0.06, 0.06, 5.5, 16);
+  [-1, 1].forEach(side => {
+    const pillar = new THREE.Mesh(pillarGeo, metalMat);
+    pillar.position.set(side * 2.5, 2.75, -30);
+    pillar.castShadow    = true;
+    pillar.receiveShadow = true;
+    scene.add(pillar);
+  });
+
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 5.0, 16), metalMat);
+  beam.rotation.z = Math.PI / 2;
+  beam.position.set(0, 5.5, -30);
+  beam.castShadow = true;
+  scene.add(beam);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Wood texture engine
+// ─────────────────────────────────────────────────────────────────────────────
+
 function createSeededRandom(seed) {
+  // Mulberry32 PRNG: fast, deterministic, uniform output in [0, 1)
   let value = seed >>> 0;
-  return function seededRandom() {
+  return function () {
     value += 0x6D2B79F5;
     let t = value;
     t = Math.imul(t ^ (t >>> 15), t | 1);
@@ -553,150 +609,65 @@ function createSeededRandom(seed) {
 
 function shiftHexLightness(hexColor, amount) {
   const color = new THREE.Color(hexColor);
-  const hsl = {};
+  const hsl   = {};
   color.getHSL(hsl);
-  hsl.l = THREE.MathUtils.clamp(hsl.l + (amount / 255), 0, 1);
+  hsl.l = THREE.MathUtils.clamp(hsl.l + amount / 255, 0, 1);
   color.setHSL(hsl.h, hsl.s, hsl.l);
   return `#${color.getHexString()}`;
 }
 
 function createWoodTexture(options) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
+  const canvas  = document.createElement('canvas');
+  canvas.width  = 512;
   canvas.height = 2048;
-
-  const context = canvas.getContext('2d');
+  const ctx    = canvas.getContext('2d');
   const random = createSeededRandom(options.seed || 1);
 
-  context.fillStyle = options.baseColor;
-  context.fillRect(0, 0, canvas.width, canvas.height);
+  // Base fill
+  ctx.fillStyle = options.baseColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  // Individual boards: randomised lightness shift, separated by a dark seam line
   const boardWidth = canvas.width / options.boardCount;
+  for (let i = 0; i < options.boardCount; i++) {
+    ctx.fillStyle = shiftHexLightness(options.baseColor, (random() - 0.5) * 16);
+    ctx.fillRect(i * boardWidth, 0, boardWidth, canvas.height);
 
-  for (let boardIndex = 0; boardIndex < options.boardCount; boardIndex += 1) {
-    const hueShift = (random() - 0.5) * 16;
-    context.fillStyle = shiftHexLightness(options.baseColor, hueShift);
-    context.fillRect(boardIndex * boardWidth, 0, boardWidth, canvas.height);
-
-    context.strokeStyle = 'rgba(70, 40, 20, 0.20)';
-    context.lineWidth = 1;
-    context.beginPath();
-    context.moveTo(boardIndex * boardWidth, 0);
-    context.lineTo(boardIndex * boardWidth, canvas.height);
-    context.stroke();
+    ctx.strokeStyle = 'rgba(70, 40, 20, 0.20)';
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ctx.moveTo(i * boardWidth, 0);
+    ctx.lineTo(i * boardWidth, canvas.height);
+    ctx.stroke();
   }
 
-  for (let index = 0; index < 350; index += 1) {
-    const x = random() * canvas.width;
-    const y = random() * canvas.height;
+  // Grain streaks running along the board length
+  for (let i = 0; i < 350; i++) {
+    const x      = random() * canvas.width;
+    const y      = random() * canvas.height;
     const length = 30 + random() * 140;
-    context.strokeStyle = `rgba(255, 255, 255, ${random() * options.streakOpacity})`;
-    context.lineWidth = 1 + random() * 2;
-    context.beginPath();
-    context.moveTo(x, y);
-    context.lineTo(x + (random() - 0.5) * 8, y + length);
-    context.stroke();
+    ctx.strokeStyle = `rgba(255, 255, 255, ${random() * options.streakOpacity})`;
+    ctx.lineWidth   = 1 + random() * 2;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + (random() - 0.5) * 8, y + length);
+    ctx.stroke();
   }
 
+  // Optional edge darkening (approach area uses this to fade toward the gutters)
   if (options.darkenEdges) {
-    const edgeGradient = context.createLinearGradient(0, 0, canvas.width, 0);
-    edgeGradient.addColorStop(0, 'rgba(0, 0, 0, 0.18)');
-    edgeGradient.addColorStop(0.15, 'rgba(0, 0, 0, 0.03)');
-    edgeGradient.addColorStop(0.85, 'rgba(0, 0, 0, 0.03)');
-    edgeGradient.addColorStop(1, 'rgba(0, 0, 0, 0.18)');
-    context.fillStyle = edgeGradient;
-    context.fillRect(0, 0, canvas.width, canvas.height);
+    const grad = ctx.createLinearGradient(0, 0, canvas.width, 0);
+    grad.addColorStop(0,    'rgba(0,0,0,0.18)');
+    grad.addColorStop(0.15, 'rgba(0,0,0,0.03)');
+    grad.addColorStop(0.85, 'rgba(0,0,0,0.03)');
+    grad.addColorStop(1,    'rgba(0,0,0,0.18)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
   const texture = new THREE.CanvasTexture(canvas);
-  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-  texture.encoding = THREE.sRGBEncoding;
+  texture.anisotropy  = renderer.capabilities.getMaxAnisotropy();
+  texture.encoding    = THREE.sRGBEncoding;
   texture.needsUpdate = true;
   return texture;
 }
-
-// Animation function
-function animate() {
-  requestAnimationFrame(animate);
-
-  // Guard: update() has no internal `enabled` check – it unconditionally flushes
-  // sphericalDelta onto the camera matrices. Calling it on a disposed instance
-  // would also throw. Only run it while orbit is active.
-  if (isOrbitEnabled) controls.update();
-
-  renderer.render(scene, camera);
-}
-
-function createHangingNeonSign() {
-  // 1. קנבס ברזולוציה גבוהה
-  const canvas = document.createElement('canvas');
-  canvas.width = 2048;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  ctx.font = "bold 160px 'Impact', 'Arial Black', sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  // 📉 הורדת הזוהר החיצוני למינימום (טשטוש קטן מאוד של 8 פיקסלים במקום 40)
-  ctx.shadowColor = "#ff007f";
-  ctx.shadowBlur = 8; 
-  ctx.strokeStyle = "#ff007f";
-  ctx.lineWidth = 20; 
-  ctx.strokeText("Ron x Dor  Bowling", canvas.width / 2, canvas.height / 2);
-
-  // ליבה פנימית חדה כמעט בלי צל פנימי
-  ctx.shadowBlur = 2;
-  ctx.shadowColor = "#ffffff";
-  ctx.fillStyle = "#ffffff";
-  ctx.fillText("Ron x Dor  Bowling", canvas.width / 2, canvas.height / 2);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.LinearMipmapLinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-  texture.needsUpdate = true;
-
-  // 📉 החלשת עוצמת האור העצמי (הורדה מ-2.2 ל-1.1) כדי שהצבעים לא יהיו שרופים
-  const signMat = new THREE.MeshPhongMaterial({
-    map: texture,
-    transparent: true,
-    emissive: new THREE.Color(0xff007f),
-    emissiveMap: texture,
-    emissiveIntensity: 1.1, 
-    side: THREE.DoubleSide
-  });
-
-  // 2. 📐 גיאומטריית השלט (נשארת גדולה וברורה כפי שביקשת)
-  const signGeo = new THREE.PlaneGeometry(5.2, 1.3);
-  const neonSign = new THREE.Mesh(signGeo, signMat);
-  neonSign.position.set(0, 4.2, -30);
-  scene.add(neonSign);
-
-  // 3. התאמת קונסטרוקציית המתכת לגודל השלט החדש
-  const metalMat = new THREE.MeshPhongMaterial({
-    color: 0x222222,
-    shininess: 80,
-    specular: 0x555555
-  });
-
-  // א. שני עמודים אנכיים בצדדים (X=2.5 כדי לפנות מקום לשלט הרחב)
-  const pillarGeo = new THREE.CylinderGeometry(0.06, 0.06, 5.5, 16); // הוגבה ל-5.5
-  [-1, 1].forEach(side => {
-    const pillar = new THREE.Mesh(pillarGeo, metalMat);
-    pillar.position.set(side * 2.5, 2.75, -30); // ממורכז ב-Y=2.75
-    pillar.castShadow = true;
-    pillar.receiveShadow = true;
-    scene.add(pillar);
-  });
-
-  // ב. קורה אופקית עליונה (אורך הוגדל ל-5.0 בהתאם)
-  const beamGeo = new THREE.CylinderGeometry(0.04, 0.04, 5.0, 16);
-  const beam = new THREE.Mesh(beamGeo, metalMat);
-  beam.rotation.z = Math.PI / 2;
-  beam.position.set(0, 5.5, -30); // יושב בראש העמודים ב-5.5
-  beam.castShadow = true;
-  scene.add(beam);
-}
-animate();
