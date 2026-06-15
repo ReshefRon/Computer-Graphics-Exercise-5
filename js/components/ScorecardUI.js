@@ -162,48 +162,43 @@ export default class ScorecardUI {
       if (i < 9) {
         // ── Frames 1-9 ──────────────────────────────────────────────────────
         if (rolls.length >= 1) {
-          shotBoxes[0].textContent =
-            rolls[0] === 10 ? 'X' : (rolls[0] === 0 ? '-' : rolls[0]);
+          shotBoxes[0].textContent = rolls[0] === 10 ? 'X' : (rolls[0] === 0 ? '-' : rolls[0]);
         }
         if (rolls.length >= 2) {
           if (rolls[0] === 10) {
-            // Strike: no second ball in this frame, keep dash
-            shotBoxes[1].textContent = '-';
+            shotBoxes[1].textContent = '-'; // Strike: no second ball
           } else if (rolls[0] + rolls[1] === 10) {
-            shotBoxes[1].textContent = '/';
+            shotBoxes[1].textContent = '/'; // Clean Spare check
           } else {
             shotBoxes[1].textContent = rolls[1] === 0 ? '-' : rolls[1];
           }
         }
       } else {
-        // ── Frame 10: up to 3 independent shot boxes ─────────────────────
+        // ── Frame 10: Standard Official Bowling Rule Markings ──────────────
+        // Box 1: Can only be an 'X' or a numerical score
         if (rolls.length >= 1) {
-          shotBoxes[0].textContent =
-            rolls[0] === 10 ? 'X' : (rolls[0] === 0 ? '-' : rolls[0]);
+          shotBoxes[0].textContent = rolls[0] === 10 ? 'X' : (rolls[0] === 0 ? '-' : rolls[0]);
         }
+        
+        // Box 2: Can be a Spare '/' (if roll 1 < 10 and r1+r2=10), an 'X' (if roll 1 was 10 and roll 2 is 10), or numbers
         if (rolls.length >= 2) {
-          if (rolls[0] === 10) {
-            // After a strike, ball 2 is a fresh set of 10 pins
-            shotBoxes[1].textContent =
-              rolls[1] === 10 ? 'X' : (rolls[1] === 0 ? '-' : rolls[1]);
-          } else if (rolls[0] + rolls[1] === 10) {
+          if (rolls[0] < 10 && rolls[0] + rolls[1] === 10) {
             shotBoxes[1].textContent = '/';
+          } else if (rolls[0] === 10 && rolls[1] === 10) {
+            shotBoxes[1].textContent = 'X';
           } else {
             shotBoxes[1].textContent = rolls[1] === 0 ? '-' : rolls[1];
           }
         }
+        
+        // Box 3: Earned via Strike or Spare. Can be 'X', '/', or numbers
         if (rolls.length >= 3 && shotBoxes[2]) {
-          if (rolls[0] === 10 && rolls[1] === 10) {
-            // Two strikes: ball 3 is another fresh set
-            shotBoxes[2].textContent =
-              rolls[2] === 10 ? 'X' : (rolls[2] === 0 ? '-' : rolls[2]);
-          } else if (rolls[0] === 10 && rolls[1] + rolls[2] === 10) {
-            // Strike then spare
-            shotBoxes[2].textContent = '/';
-          } else if (rolls[0] < 10 && rolls[0] + rolls[1] === 10) {
-            // Spare on balls 1+2: bonus ball is a fresh set
-            shotBoxes[2].textContent =
-              rolls[2] === 10 ? 'X' : (rolls[2] === 0 ? '-' : rolls[2]);
+          if (rolls[0] === 10 && rolls[1] === 10 && rolls[2] === 10) {
+            shotBoxes[2].textContent = 'X'; // Turkey! Three strikes in frame 10
+          } else if (rolls[0] === 10 && rolls[1] < 10 && rolls[1] + rolls[2] === 10) {
+            shotBoxes[2].textContent = '/'; // Strike on roll 1, then a spare on rolls 2+3
+          } else if (rolls[0] < 10 && rolls[0] + rolls[1] === 10 && rolls[2] === 10) {
+            shotBoxes[2].textContent = 'X'; // Spare on rolls 1+2, then a strike on bonus roll
           } else {
             shotBoxes[2].textContent = rolls[2] === 0 ? '-' : rolls[2];
           }
