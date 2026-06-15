@@ -57,8 +57,8 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   1000
 );
-/* Default bowler's-eye starting position */
-camera.position.set(0, 5, 12);
+/* Default bowler's-eye starting position – moved back to comfortably frame the ball and approach area */
+camera.position.set(0, 5, 18.0);
 
 // ── Lights ────────────────────────────────────────────────────────────────────
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -136,11 +136,12 @@ document.addEventListener('keydown', e => {
   }
 
   if (e.code === 'ArrowLeft' && gameState.phase === 'aiming') {
-    ball.mesh.position.x = Math.max(-1.5, ball.mesh.position.x - 0.1);
+    // Allow aiming up to ±1.76 so the player can intentionally roll a gutter ball
+    ball.mesh.position.x = THREE.MathUtils.clamp(ball.mesh.position.x - 0.1, -1.76, 1.76);
   }
 
   if (e.code === 'ArrowRight' && gameState.phase === 'aiming') {
-    ball.mesh.position.x = Math.min(1.5, ball.mesh.position.x + 0.1);
+    ball.mesh.position.x = THREE.MathUtils.clamp(ball.mesh.position.x + 0.1, -1.76, 1.76);
   }
 
   if (e.code === 'Space') {
@@ -151,6 +152,10 @@ document.addEventListener('keydown', e => {
       controls.enabled         = false;
     } else if (gameState.phase === 'power') {
       gameState.phase = 'rolling';
+      // Scale forward speed by the locked power fraction
+      const forwardSpeed = gameState.powerValue * gameState.ballSpeedFactor;
+      // Negative Z = towards the pins; X/Y stay flat
+      gameState.ballVelocity.set(0, 0, -forwardSpeed);
     }
   }
 
@@ -158,6 +163,41 @@ document.addEventListener('keydown', e => {
     console.log("Reset triggered");
   }
 });
+
+// ── Physics ───────────────────────────────────────────────────────────────────
+function updatePhysics(deltaTime) {
+  // 1. Apply Motion: advance position by velocity × dt
+  ball.mesh.position.addScaledVector(gameState.ballVelocity, deltaTime);
+
+  // 2. Realistic Rolling Rotation: spin the ball around X-axis proportional to speed
+  const ballRadius         = 0.35;
+  const currentForwardSpeed = Math.abs(gameState.ballVelocity.z);
+  if (currentForwardSpeed > 0) {
+    ball.mesh.rotation.x -= (currentForwardSpeed / ballRadius) * deltaTime;
+  }
+
+  // 3. Rolling Friction: gentle deceleration so light throws still reach the pins
+  if (gameState.ballVelocity.z < 0) {
+    gameState.ballVelocity.z += 0.4 * deltaTime;
+    if (gameState.ballVelocity.z > 0) gameState.ballVelocity.z = 0;
+  }
+
+  // 4. Gutter Snap: only triggers after the ball crosses the foul line (Z <= 0)
+  if (ball.mesh.position.z <= 0 && Math.abs(ball.mesh.position.x) >= 1.75) {
+    // Determine which channel (left or right) and snap to its exact centre line
+    const side = ball.mesh.position.x > 0 ? 1 : -1;
+    ball.mesh.position.x = side * 2.0;   // centre of the gutter channel geometry
+    ball.mesh.position.y = 0.22;         // rests the ball bottom on the gutter floor
+    gameState.ballVelocity.x = 0;        // kill all lateral drift
+  }
+
+  // 5. End-of-Roll: ball cleared the pin deck or came to a full stop
+  if (ball.mesh.position.z < -61.5 || currentForwardSpeed === 0) {
+    gameState.phase = 'resolving';
+    gameState.ballVelocity.set(0, 0, 0);
+    console.log("Roll finished. Entering resolving phase.");
+  }
+}
 
 // ── Window resize ─────────────────────────────────────────────────────────────
 window.addEventListener('resize', () => {
@@ -174,6 +214,10 @@ window.addEventListener('resize', () => {
 function animate() {
   requestAnimationFrame(animate);
   const deltaTime = clock.getDelta();
+
+  if (gameState.phase === 'rolling') {
+    updatePhysics(deltaTime);
+  }
 
   if (gameState.phase === 'power') {
     gameState.powerValue += gameState.powerDirection * deltaTime * 2.0;

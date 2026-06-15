@@ -145,17 +145,18 @@ export default class BowlingLane {
 
   _buildGutters() {
     const GUTTER_WIDTH = 0.5;
-    const gutterGeo    = new THREE.BoxGeometry(GUTTER_WIDTH, 0.15, 60);
-    const gutterMat    = new THREE.MeshPhongMaterial({
+    // Length 75 and Z centre -22.5 spans from Z = +15 (approach) to Z = -60 (pin deck)
+    const gutterGeo = new THREE.BoxGeometry(GUTTER_WIDTH, 0.15, 75);
+    const gutterMat = new THREE.MeshPhongMaterial({
       color:     0x222831,
       shininess: 20,
       specular:  new THREE.Color(0x0a0f15)
     });
 
-    /* Mirror the geometry on both sides: X = ±(half-lane + half-gutter). */
+    /* Mirror the geometry on both sides: X = ±(half-lane + half-gutter) = ±2.0. */
     [-1, 1].forEach(side => {
       const gutter = new THREE.Mesh(gutterGeo, gutterMat);
-      gutter.position.set(side * (1.75 + GUTTER_WIDTH / 2), -0.025, -30);
+      gutter.position.set(side * (1.75 + GUTTER_WIDTH / 2), -0.025, -22.5);
       gutter.receiveShadow = true;
       gutter.castShadow    = true;
       this.mesh.add(gutter);
