@@ -157,6 +157,8 @@ export default class BowlingLane {
     [-1, 1].forEach(side => {
       const gutter = new THREE.Mesh(gutterGeo, gutterMat);
       gutter.position.set(side * (1.75 + GUTTER_WIDTH / 2), -0.025, -22.5);
+      // Slight forward tilt so the pin-deck end is deeply recessed (~-0.15 vs -0.025 at front)
+      gutter.rotation.x = -0.0035;
       gutter.receiveShadow = true;
       gutter.castShadow    = true;
       this.mesh.add(gutter);

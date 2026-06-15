@@ -34,7 +34,7 @@ let savedCameraPos      = new THREE.Vector3();
 let savedControlsTarget = new THREE.Vector3();
 
 const gameState = {
-  phase:              'aiming',
+  phase:              'positioning',  // 1.positioning → 2.aiming → 3.power → 4.rolling
   currentFrame:       1,
   currentRoll:        1,
   powerValue:         0,
@@ -44,7 +44,10 @@ const gameState = {
   scores:             Array.from({ length: 10 }, () => []),
   cumulativeTotals:   Array(10).fill(null),
   pinsStanding:       Array(10).fill(true),  // true = upright, false = knocked down
-  pinsFallenThisRoll: 0
+  pinsFallenThisRoll: 0,
+  angle:              0,     // current aiming angle in radians
+  angleDirection:     1,     // pendulum swing direction (1 = right, -1 = left)
+  aimingArrow:        null   // THREE.ArrowHelper attached to ball group
 };
 
 // ── Renderer ──────────────────────────────────────────────────────────────────
@@ -164,27 +167,54 @@ document.addEventListener('keydown', e => {
     controls.update();
   }
 
-  if (e.code === 'ArrowLeft' && gameState.phase === 'aiming') {
+  if (e.code === 'ArrowLeft' && gameState.phase === 'positioning') {
     // Allow aiming up to ±1.76 so the player can intentionally roll a gutter ball
     ball.mesh.position.x = THREE.MathUtils.clamp(ball.mesh.position.x - 0.1, -1.76, 1.76);
   }
 
-  if (e.code === 'ArrowRight' && gameState.phase === 'aiming') {
+  if (e.code === 'ArrowRight' && gameState.phase === 'positioning') {
     ball.mesh.position.x = THREE.MathUtils.clamp(ball.mesh.position.x + 0.1, -1.76, 1.76);
   }
 
   if (e.code === 'Space') {
-    if (gameState.phase === 'aiming') {
+    e.preventDefault();
+
+    if (gameState.phase === 'positioning') {
+      // Step 1: lock lane position → spawn arrow and begin pendulum aiming
+      gameState.phase = 'aiming';
+      if (!gameState.aimingArrow) {
+        gameState.aimingArrow = new THREE.ArrowHelper(
+          new THREE.Vector3(0, 0, -1),
+          new THREE.Vector3(0, 0, 0),
+          2.5,
+          0xff0000,
+          0.5,
+          0.3
+        );
+        ball.mesh.add(gameState.aimingArrow);
+      }
+      console.log("Position locked. Entering aiming phase.");
+
+    } else if (gameState.phase === 'aiming') {
+      // Step 2: lock angle → remove arrow and start power meter
       gameState.phase          = 'power';
       gameState.powerValue     = 0;
       gameState.powerDirection = 1;
-      controls.enabled         = false;
+      if (gameState.aimingArrow) {
+        ball.mesh.remove(gameState.aimingArrow);
+        gameState.aimingArrow = null;
+      }
+      console.log("Angle locked. Entering power phase.");
+
     } else if (gameState.phase === 'power') {
-      gameState.phase = 'rolling';
-      // Scale forward speed by the locked power fraction
+      // Step 3: lock power → decompose velocity and release ball
+      gameState.phase    = 'rolling';
+      controls.enabled   = false;
       const forwardSpeed = gameState.powerValue * gameState.ballSpeedFactor;
-      // Negative Z = towards the pins; X/Y stay flat
-      gameState.ballVelocity.set(0, 0, -forwardSpeed);
+      const vx           = forwardSpeed * Math.sin(gameState.angle);
+      const vz           = -forwardSpeed * Math.cos(gameState.angle);
+      gameState.ballVelocity.set(vx, 0, vz);
+      console.log("Power locked. Ball rolling at angle!");
     }
   }
 
@@ -312,11 +342,14 @@ function updatePhysics(deltaTime) {
 
   // 4. Gutter Snap: only triggers after the ball crosses the foul line (Z <= 0)
   if (ball.mesh.position.z <= 0 && Math.abs(ball.mesh.position.x) >= 1.75) {
-    // Determine which channel (left or right) and snap to its exact centre line
     const side = ball.mesh.position.x > 0 ? 1 : -1;
-    ball.mesh.position.x = side * 2.0;   // centre of the gutter channel geometry
-    ball.mesh.position.y = 0.22;         // rests the ball bottom on the gutter floor
-    gameState.ballVelocity.x = 0;        // kill all lateral drift
+    ball.mesh.position.x = side * 2.0;  // snap to gutter centre channel
+    // Gradual sinking: Y goes from 0.22 at Z=0 down to -0.12 at Z=-60,
+    // matching the slight forward tilt applied to the gutter geometry
+    const laneLength = 60.0;
+    const progress   = Math.min(Math.max(ball.mesh.position.z / -laneLength, 0), 1);
+    ball.mesh.position.y = 0.22 - (progress * 0.34);
+    gameState.ballVelocity.x = 0;       // lock out lateral drift
   }
 
   // 5. End-of-Roll: ball reached the pit boundary or came to a full stop
@@ -491,13 +524,21 @@ function resetBallAndPins(fullNewGame) {
   ball.mesh.position.set(0, 0.45, 12);
   ball.mesh.rotation.set(0, 0, 0);
   gameState.ballVelocity.set(0, 0, 0);
-  gameState.phase  = 'aiming';
+  gameState.phase  = 'positioning';
   controls.enabled = true;
   // Return camera to the default aiming perspective and clear any toggle state
   isCustomViewActive = false;
   camera.position.set(0, 5, 18.0);
   controls.target.set(0, 0, -25);
   controls.update();
+
+  // Reset angle and safely detach any leftover arrow from the previous turn
+  gameState.angle          = 0;
+  gameState.angleDirection = 1;
+  if (gameState.aimingArrow) {
+    ball.mesh.remove(gameState.aimingArrow);
+    gameState.aimingArrow = null;
+  }
 
   if (fullNewGame) {
     // Restore all 10 pins to their original positions and clear all runtime state
@@ -551,6 +592,26 @@ function animate() {
       18.0 - currentBallProgress    // subtracts forward progress from the stable baseline
     );
     controls.target.copy(ball.mesh.position);
+  }
+
+  if (gameState.phase === 'aiming') {
+    // Pendulum swing: oscillate angle between ±40° automatically
+    const maxAngle = 40 * (Math.PI / 180);
+    gameState.angle += gameState.angleDirection * deltaTime * 1.5;
+    if (gameState.angle > maxAngle) {
+      gameState.angle          = maxAngle;
+      gameState.angleDirection = -1;
+    } else if (gameState.angle < -maxAngle) {
+      gameState.angle          = -maxAngle;
+      gameState.angleDirection = 1;
+    }
+    // Point the arrow in the current swing direction
+    const swingDir = new THREE.Vector3(
+      Math.sin(gameState.angle),
+      0,
+      -Math.cos(gameState.angle)
+    ).normalize();
+    gameState.aimingArrow.setDirection(swingDir);
   }
 
   if (gameState.phase === 'power') {
