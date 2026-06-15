@@ -541,11 +541,14 @@ function animate() {
 
   if (gameState.phase === 'rolling') {
     updatePhysics(deltaTime);
-    // Follow-ball camera: trail behind and slightly above the ball each frame
+    // Unified cinematic cam: at launch (ball Z=12) this evaluates to exactly Z=18.0,
+    // then smoothly follows the ball down the lane with zero snap.
+    const ballStartZ          = 12.0;
+    const currentBallProgress = ballStartZ - ball.mesh.position.z;
     camera.position.set(
-      ball.mesh.position.x,
-      ball.mesh.position.y + 3.0,
-      ball.mesh.position.z + 6.0
+      ball.mesh.position.x * 0.5,  // damp side-to-side jitter on angled throws
+      4.5,
+      18.0 - currentBallProgress    // subtracts forward progress from the stable baseline
     );
     controls.target.copy(ball.mesh.position);
   }
