@@ -1,22 +1,26 @@
 /**
- * main.js – Application controller for HW05 Bowling Alley (Three.js / WebGL).
+ * main.js – Application controller for HW06 – Interactive Bowling Game with WebGL.
  *
  * Responsibilities:
  *   - Bootstrap Three.js engine: Renderer, Scene, Camera, Lights.
  *   - Instantiate all scene components and add them to the scene graph.
  *   - Register global event handlers: window resize, keyboard shortcuts.
- *   - Run the main animation / render loop.
+ *   - Drive the game state machine and animation / render loop.
  *
  * Scene components (each encapsulates its own geometry/material):
  *   BowlingLane    – full lane infrastructure (surfaces, gutters, markings).
  *   HangingSign    – neon canvas sign with metal support pillars and beam.
  *   PinFormation   – 10 bowling pins in the standard triangular layout.
- *   BowlingBall    – static ball positioned on the approach.
+ *   BowlingBall    – ball positioned on the approach area.
  *   ScorecardUI    – DOM overlay scorecard and keyboard controls panel.
  *
  * Keyboard shortcuts:
- *   O – toggle OrbitControls on / off.
- *   C – snap camera to a frontal view centred on the neon sign.
+ *   ← / → – position ball horizontally (positioning phase only).
+ *   Space  – advance launch cycle: lock position → lock angle → lock power & launch.
+ *   M      – mute / unmute background music and sound effects.
+ *   O      – toggle OrbitControls on / off.
+ *   C      – snap camera to a frontal view centred on the neon sign.
+ *   R      – hard-reset the entire game.
  */
 
 import { OrbitControls } from '../src/OrbitControls.js';
