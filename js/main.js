@@ -119,11 +119,13 @@ scene.add(ball.mesh);
 // Wrap each pin Group child with per-pin collision and animation state.
 // pins.mesh.children[i] maps to pin positions in the same order as PinFormation._placeAllPins().
 const pinsArray = pins.mesh.children.map((pinMesh, index) => ({
-  mesh:            pinMesh,
-  index:           index,
-  isToppling:      false,
-  toppleDirection: new THREE.Vector3(),
-  toppleRotation:  0
+  mesh:             pinMesh,
+  index:            index,
+  isToppling:       false,
+  toppleDirection:  new THREE.Vector3(),
+  toppleRotation:   0,
+  toppleSpeedFactor: undefined,
+  initialPosition:  pinMesh.position.clone()  // snapshot for full-reset restores
 }));
 
 // ── Orbit controls ────────────────────────────────────────────────────────────
@@ -172,7 +174,17 @@ document.addEventListener('keydown', e => {
   }
 
   if (e.code === 'KeyR') {
-    console.log("Reset triggered");
+    // Full game restart: wipe all state back to factory defaults
+    gameState.currentFrame       = 1;
+    gameState.currentRoll        = 1;
+    gameState.powerValue         = 0;
+    gameState.powerDirection     = 1;
+    gameState.scores             = Array.from({ length: 10 }, () => []);
+    gameState.cumulativeTotals   = Array(10).fill(null);
+    gameState.pinsStanding.fill(true);
+    gameState.pinsFallenThisRoll = 0;
+    scorecardUI.updateScoreboard(gameState.scores, gameState.cumulativeTotals, 1, false);
+    resetBallAndPins(true);
   }
 });
 
@@ -197,6 +209,17 @@ function checkCollisions() {
       // Topple this pin away from the ball's incoming direction
       pin.isToppling = true;
       pin.toppleDirection.copy(pin.mesh.position).sub(ball.mesh.position).setY(0).normalize();
+      // Randomize falling speed and fan out the direction slightly
+      if (!pin.toppleSpeedFactor) {
+        pin.toppleSpeedFactor = 3.5 + Math.random() * 2.5;
+        pin.toppleDirection.x += (Math.random() - 0.5) * 0.5;
+        pin.toppleDirection.normalize();
+      }
+
+      // Ball loses 25% forward momentum on impact and deflects sideways
+      gameState.ballVelocity.z *= 0.75;
+      const deflectionX = (ball.mesh.position.x - pin.mesh.position.x) * 5.0;
+      gameState.ballVelocity.x = deflectionX;
 
       // Pin-to-pin propagation: immediately tip over close standing neighbors
       pinsArray.forEach(neighbor => {
@@ -213,6 +236,12 @@ function checkCollisions() {
               .sub(pin.mesh.position)
               .setY(0)
               .normalize();
+            // Each neighbor also gets its own randomized fall characteristics
+            if (!neighbor.toppleSpeedFactor) {
+              neighbor.toppleSpeedFactor = 3.5 + Math.random() * 2.5;
+              neighbor.toppleDirection.x += (Math.random() - 0.5) * 0.5;
+              neighbor.toppleDirection.normalize();
+            }
           }
         }
       });
@@ -225,7 +254,7 @@ function animatePins(deltaTime) {
   pinsArray.forEach(pin => {
     if (!pin.isToppling) return;
 
-    pin.toppleRotation += deltaTime * 5.0;
+    pin.toppleRotation += deltaTime * pin.toppleSpeedFactor;
 
     // Rotate around the axis perpendicular to the topple direction
     pin.mesh.rotation.z = -pin.toppleDirection.x * pin.toppleRotation;
@@ -275,11 +304,202 @@ function updatePhysics(deltaTime) {
     gameState.ballVelocity.x = 0;        // kill all lateral drift
   }
 
-  // 5. End-of-Roll: ball cleared the pin deck or came to a full stop
-  if (ball.mesh.position.z < -61.5 || currentForwardSpeed === 0) {
+  // 5. End-of-Roll: ball reached the pit boundary or came to a full stop
+  if (ball.mesh.position.z < -60.0 || currentForwardSpeed === 0) {
     gameState.phase = 'resolving';
     gameState.ballVelocity.set(0, 0, 0);
-    console.log("Roll finished. Entering resolving phase.");
+    scene.remove(ball.mesh);  // drop ball into the pit visually
+    // Short delay lets toppling animations finish before we count fallen pins
+    setTimeout(() => { resolveCurrentRoll(); }, 600);
+  }
+}
+
+// ── Scoring ───────────────────────────────────────────────────────────────────
+
+/*
+ * Walk every frame in gameState.scores with a flat-ball index so strike and
+ * spare bonus balls are read from the correct subsequent frame.
+ * Sets gameState.cumulativeTotals[i] to the running total or null when the
+ * bonus balls needed for that frame haven't been thrown yet.
+ */
+function computeCumulativeTotals() {
+  const allBalls = gameState.scores.flatMap(frame => frame);
+  let ballIdx = 0;
+  let running  = 0;
+
+  for (let i = 0; i < 10; i++) {
+    const rolls = gameState.scores[i];
+
+    if (!rolls || rolls.length === 0) {
+      gameState.cumulativeTotals[i] = null;
+      continue;
+    }
+
+    if (i < 9) {
+      if (rolls[0] === 10) {
+        // Strike: frame value = 10 + next 2 balls
+        if (allBalls.length >= ballIdx + 3) {
+          running += 10 + allBalls[ballIdx + 1] + allBalls[ballIdx + 2];
+          gameState.cumulativeTotals[i] = running;
+        } else {
+          gameState.cumulativeTotals[i] = null;
+        }
+        ballIdx += 1;
+      } else if (rolls.length >= 2 && rolls[0] + rolls[1] === 10) {
+        // Spare: frame value = 10 + next 1 ball
+        if (allBalls.length >= ballIdx + 3) {
+          running += 10 + allBalls[ballIdx + 2];
+          gameState.cumulativeTotals[i] = running;
+        } else {
+          gameState.cumulativeTotals[i] = null;
+        }
+        ballIdx += 2;
+      } else if (rolls.length >= 2) {
+        // Open frame: just the two rolls
+        running += rolls[0] + rolls[1];
+        gameState.cumulativeTotals[i] = running;
+        ballIdx += 2;
+      } else {
+        // Roll 1 done; roll 2 not yet thrown
+        gameState.cumulativeTotals[i] = null;
+        ballIdx += 1;
+      }
+    } else {
+      // Frame 10: value is simply the sum of all balls thrown in this frame
+      const sum = rolls.reduce((a, b) => a + b, 0);
+      const r1  = rolls[0];
+      const r2  = rolls[1] ?? -1;
+      // Frame is complete when: (a) 3 balls thrown, or (b) 2 balls with no spare/strike earned
+      const isComplete = rolls.length === 3 ||
+        (rolls.length === 2 && r1 < 10 && r1 + r2 < 10);
+      if (isComplete) {
+        running += sum;
+        gameState.cumulativeTotals[i] = running;
+      } else {
+        gameState.cumulativeTotals[i] = null;
+      }
+    }
+  }
+}
+
+/*
+ * Called 600ms after a roll ends (via setTimeout) so pin animations can finish.
+ * Records the roll score, advances the game state, and either resets for the
+ * next throw or ends the game.
+ */
+function resolveCurrentRoll() {
+  const fi          = gameState.currentFrame - 1;  // 0-based frame index
+  const roll        = gameState.currentRoll;
+  const totalFallen = gameState.pinsFallenThisRoll;
+
+  // Record this roll and reset the per-roll counter for the next throw
+  gameState.scores[fi].push(totalFallen);
+  gameState.pinsFallenThisRoll = 0;
+
+  // Recalculate every running total using the updated scores
+  computeCumulativeTotals();
+
+  let nextFrame = gameState.currentFrame;
+  let nextRoll  = gameState.currentRoll;
+  let fullReset = false;  // true = restore all 10 pins; false = leave standing pins
+
+  if (gameState.currentFrame < 10) {
+    // ── Frames 1-9 ────────────────────────────────────────────────────────────
+    if (roll === 1 && totalFallen === 10) {
+      // Strike: frame is over, advance with a fresh pin set
+      nextFrame++;
+      nextRoll  = 1;
+      fullReset = true;
+    } else if (roll === 1) {
+      // No strike: go to roll 2, leave remaining pins in place
+      nextRoll  = 2;
+      fullReset = false;
+    } else {
+      // Roll 2 done: frame over, advance with a fresh pin set
+      nextFrame++;
+      nextRoll  = 1;
+      fullReset = true;
+    }
+  } else {
+    // ── Frame 10 special rules ─────────────────────────────────────────────────
+    const f10 = gameState.scores[9];
+    if (roll === 1) {
+      nextRoll  = 2;
+      // Strike on roll 1: reset pins so roll 2 is a fresh set
+      fullReset = (totalFallen === 10);
+    } else if (roll === 2) {
+      if (f10[0] === 10) {
+        // Roll 1 was a strike: always earn a 3rd ball
+        nextRoll  = 3;
+        // 2nd ball also a strike: reset pins again for ball 3
+        fullReset = (totalFallen === 10);
+      } else if (f10[0] + f10[1] === 10) {
+        // Spare: earn a bonus ball with a fresh set of pins
+        nextRoll  = 3;
+        fullReset = true;
+      } else {
+        // Open frame in 10th: game over, no bonus ball
+        gameState.phase = 'gameover';
+      }
+    } else {
+      // Roll 3 always ends the game
+      gameState.phase = 'gameover';
+    }
+  }
+
+  // Safety guard: should not happen in normal flow
+  if (nextFrame > 10) {
+    gameState.phase = 'gameover';
+  }
+
+  const isGameOver = gameState.phase === 'gameover';
+  scorecardUI.updateScoreboard(gameState.scores, gameState.cumulativeTotals, nextFrame, isGameOver);
+
+  if (isGameOver) {
+    console.log("Game over!");
+    return;
+  }
+
+  gameState.currentFrame = nextFrame;
+  gameState.currentRoll  = nextRoll;
+  resetBallAndPins(fullReset);
+}
+
+/*
+ * Restores the ball to the approach area and either resets all 10 pins
+ * (fullNewGame = true) or ensures fallen pins are cleanly removed for a
+ * second-roll within the same frame (fullNewGame = false).
+ */
+function resetBallAndPins(fullNewGame) {
+  // Restore ball to approach position
+  scene.add(ball.mesh);
+  ball.mesh.position.set(0, 0.45, 12);
+  ball.mesh.rotation.set(0, 0, 0);
+  gameState.ballVelocity.set(0, 0, 0);
+  gameState.phase  = 'aiming';
+  controls.enabled = true;
+
+  if (fullNewGame) {
+    // Restore all 10 pins to their original positions and clear all runtime state
+    pinsArray.forEach(pin => {
+      if (!pin.mesh.parent) {
+        pins.mesh.add(pin.mesh);  // re-attach if it was removed after falling
+      }
+      pin.mesh.position.copy(pin.initialPosition);
+      pin.mesh.rotation.set(0, 0, 0);
+      pin.isToppling        = false;
+      pin.toppleDirection.set(0, 0, 0);
+      pin.toppleRotation    = 0;
+      pin.toppleSpeedFactor = undefined;
+    });
+    gameState.pinsStanding.fill(true);
+  } else {
+    // Between-roll: cleanly remove any pins recorded as fallen but still in scene
+    pinsArray.forEach(pin => {
+      if (!gameState.pinsStanding[pin.index] && pin.mesh.parent) {
+        pins.mesh.remove(pin.mesh);
+      }
+    });
   }
 }
 

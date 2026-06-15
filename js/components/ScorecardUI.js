@@ -137,4 +137,89 @@ export default class ScorecardUI {
       this._powerContainer.style.display = 'none';
     }
   }
+
+  /*
+   * Refreshes all 10 frame cells in the DOM scorecard.
+   *
+   * Shot-mark rules:
+   *   Frames 1-9  – roll 1 = 10   → 'X'  (strike, no second roll shown)
+   *               – roll 1+2 = 10 → '/'  (spare in box 1)
+   *               – 0 pins        → '-'
+   *   Frame 10    – each box is independent; a spare in boxes 0+1 shows '/'
+   *                 in box 1, but boxes after a strike reset to fresh rules.
+   */
+  updateScoreboard(scores, cumulativeTotals, currentFrame, isGameOver) {
+    const frameEls = document.querySelectorAll('#scorecard .frame');
+
+    frameEls.forEach((frameEl, i) => {
+      const rolls     = scores[i] || [];
+      const shotBoxes = frameEl.querySelectorAll('.shot-box');
+      const totalEl   = frameEl.querySelector('.frame-total');
+
+      // Reset all shot boxes to placeholder dash
+      shotBoxes.forEach(box => { box.textContent = '-'; });
+
+      if (i < 9) {
+        // ── Frames 1-9 ──────────────────────────────────────────────────────
+        if (rolls.length >= 1) {
+          shotBoxes[0].textContent =
+            rolls[0] === 10 ? 'X' : (rolls[0] === 0 ? '-' : rolls[0]);
+        }
+        if (rolls.length >= 2) {
+          if (rolls[0] === 10) {
+            // Strike: no second ball in this frame, keep dash
+            shotBoxes[1].textContent = '-';
+          } else if (rolls[0] + rolls[1] === 10) {
+            shotBoxes[1].textContent = '/';
+          } else {
+            shotBoxes[1].textContent = rolls[1] === 0 ? '-' : rolls[1];
+          }
+        }
+      } else {
+        // ── Frame 10: up to 3 independent shot boxes ─────────────────────
+        if (rolls.length >= 1) {
+          shotBoxes[0].textContent =
+            rolls[0] === 10 ? 'X' : (rolls[0] === 0 ? '-' : rolls[0]);
+        }
+        if (rolls.length >= 2) {
+          if (rolls[0] === 10) {
+            // After a strike, ball 2 is a fresh set of 10 pins
+            shotBoxes[1].textContent =
+              rolls[1] === 10 ? 'X' : (rolls[1] === 0 ? '-' : rolls[1]);
+          } else if (rolls[0] + rolls[1] === 10) {
+            shotBoxes[1].textContent = '/';
+          } else {
+            shotBoxes[1].textContent = rolls[1] === 0 ? '-' : rolls[1];
+          }
+        }
+        if (rolls.length >= 3 && shotBoxes[2]) {
+          if (rolls[0] === 10 && rolls[1] === 10) {
+            // Two strikes: ball 3 is another fresh set
+            shotBoxes[2].textContent =
+              rolls[2] === 10 ? 'X' : (rolls[2] === 0 ? '-' : rolls[2]);
+          } else if (rolls[0] === 10 && rolls[1] + rolls[2] === 10) {
+            // Strike then spare
+            shotBoxes[2].textContent = '/';
+          } else if (rolls[0] < 10 && rolls[0] + rolls[1] === 10) {
+            // Spare on balls 1+2: bonus ball is a fresh set
+            shotBoxes[2].textContent =
+              rolls[2] === 10 ? 'X' : (rolls[2] === 0 ? '-' : rolls[2]);
+          } else {
+            shotBoxes[2].textContent = rolls[2] === 0 ? '-' : rolls[2];
+          }
+        }
+      }
+
+      // Running cumulative total (null = bonus balls not yet thrown)
+      totalEl.textContent = cumulativeTotals[i] !== null ? cumulativeTotals[i] : '-';
+    });
+
+    // Game-over banner replaces the scorecard title
+    const h2 = document.querySelector('#scorecard h2');
+    if (h2) {
+      h2.textContent = isGameOver
+        ? 'GAME OVER – Press R to Restart'
+        : 'Scorecard';
+    }
+  }
 }
