@@ -28,6 +28,16 @@ import ScorecardUI       from './components/ScorecardUI.js';
 
 const clock = new THREE.Clock();
 
+// ── Audio ─────────────────────────────────────────────────────────────────────
+const bgMusic = new Audio('sounds/bg.mp3');
+bgMusic.loop   = true;
+bgMusic.volume = 0.35;
+
+const strikeSound = new Audio('sounds/strike.mp3');
+strikeSound.volume = 0.85;
+
+let isMuted = false;
+
 // ── Camera view state ─────────────────────────────────────────────────────────
 let isCustomViewActive  = false;        // tracks whether C-key front view is on
 let savedCameraPos      = new THREE.Vector3();
@@ -219,6 +229,16 @@ document.addEventListener('keydown', e => {
     }
   }
 
+  if (e.code === 'KeyM') {
+    isMuted       = !isMuted;
+    bgMusic.muted = isMuted;
+    const muteLabel = document.getElementById('mute-label');
+    if (muteLabel) {
+      muteLabel.textContent = isMuted ? 'Unmute Music' : 'Mute Music';
+    }
+    console.log("Audio mute toggled. Muted:", isMuted);
+  }
+
   if (e.code === 'KeyR') {
     // Full game restart: wipe all state back to factory defaults
     gameState.currentFrame       = 1;
@@ -233,6 +253,15 @@ document.addEventListener('keydown', e => {
     resetBallAndPins(true);
   }
 });
+
+// Start background music on the first keypress to satisfy browser autoplay policy
+const startAudioOnFirstInteraction = () => {
+  if (!isMuted && bgMusic.paused) {
+    bgMusic.play().catch(err => console.log("Audio waiting for player viewport activation:", err));
+  }
+  document.removeEventListener('keydown', startAudioOnFirstInteraction);
+};
+document.addEventListener('keydown', startAudioOnFirstInteraction);
 
 // ── Collision constants ───────────────────────────────────────────────────────
 const BALL_RADIUS            = 0.35;
@@ -255,6 +284,12 @@ function checkCollisions() {
     const dist = Math.sqrt(dx * dx + dz * dz);
 
     if (dist < COLLISION_THRESHOLD) {
+      // Fire impact sound on first contact with each pin
+      if (!isMuted) {
+        strikeSound.currentTime = 0;
+        strikeSound.play().catch(e => console.log("Audio clip catch:", e));
+      }
+
       // Topple this pin away from the ball's incoming direction
       pin.isToppling = true;
       pin.toppleDirection.copy(pin.mesh.position).sub(ball.mesh.position).setY(0).normalize();

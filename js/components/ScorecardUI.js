@@ -92,6 +92,11 @@ export default class ScorecardUI {
         <span class="key-badge">R</span>
         <span class="control-label">Reset Game</span>
       </div>
+
+      <div class="control-row">
+        <span class="key-badge">M</span>
+        <span class="control-label" id="mute-label">Mute Music</span>
+      </div>
     `;
     document.body.appendChild(controlsCard);
   }
@@ -142,11 +147,13 @@ export default class ScorecardUI {
    * Refreshes all 10 frame cells in the DOM scorecard.
    *
    * Shot-mark rules:
-   *   Frames 1-9  – roll 1 = 10   → 'X'  (strike, no second roll shown)
-   *               – roll 1+2 = 10 → '/'  (spare in box 1)
-   *               – 0 pins        → '-'
-   *   Frame 10    – each box is independent; a spare in boxes 0+1 shows '/'
-   *                 in box 1, but boxes after a strike reset to fresh rules.
+   * Frames 1-9  – roll 1 = 10   → 'X' (strike, no second roll shown)
+   * – roll 1+2 = 10 → '/' (spare in box 1)
+   * – 0 pins        → '-'
+   * Frame 10    – Follows official bowling tracking rules:
+   * – Box 1: 'X' on strike, else number.
+   * – Box 2: '/' if completing a spare from roll 1, 'X' if consecutive strike, else number.
+   * – Box 3: 'X' or '/' if earned by strike/spare combinations, else number.
    */
   updateScoreboard(scores, cumulativeTotals, currentFrame, isGameOver) {
     const frameEls = document.querySelectorAll('#scorecard .frame');
