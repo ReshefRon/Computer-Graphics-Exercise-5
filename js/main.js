@@ -28,6 +28,11 @@ import ScorecardUI       from './components/ScorecardUI.js';
 
 const clock = new THREE.Clock();
 
+// ── Camera view state ─────────────────────────────────────────────────────────
+let isCustomViewActive  = false;        // tracks whether C-key front view is on
+let savedCameraPos      = new THREE.Vector3();
+let savedControlsTarget = new THREE.Vector3();
+
 const gameState = {
   phase:              'aiming',
   currentFrame:       1,
@@ -143,9 +148,19 @@ document.addEventListener('keydown', e => {
   }
 
   if (e.code === 'KeyC') {
-    controls.reset();
-    camera.position.set(0, 4.0, -18);
-    controls.target.set(0, 4.0, -30);
+    if (!isCustomViewActive) {
+      // Enter front view: save current camera state then snap
+      isCustomViewActive = true;
+      savedCameraPos.copy(camera.position);
+      savedControlsTarget.copy(controls.target);
+      camera.position.set(0, 4.0, -18);
+      controls.target.set(0, 4.0, -30);
+    } else {
+      // Exit front view: restore saved camera state
+      isCustomViewActive = false;
+      camera.position.copy(savedCameraPos);
+      controls.target.copy(savedControlsTarget);
+    }
     controls.update();
   }
 
@@ -478,6 +493,11 @@ function resetBallAndPins(fullNewGame) {
   gameState.ballVelocity.set(0, 0, 0);
   gameState.phase  = 'aiming';
   controls.enabled = true;
+  // Return camera to the default aiming perspective and clear any toggle state
+  isCustomViewActive = false;
+  camera.position.set(0, 5, 18.0);
+  controls.target.set(0, 0, -25);
+  controls.update();
 
   if (fullNewGame) {
     // Restore all 10 pins to their original positions and clear all runtime state
@@ -521,6 +541,13 @@ function animate() {
 
   if (gameState.phase === 'rolling') {
     updatePhysics(deltaTime);
+    // Follow-ball camera: trail behind and slightly above the ball each frame
+    camera.position.set(
+      ball.mesh.position.x,
+      ball.mesh.position.y + 3.0,
+      ball.mesh.position.z + 6.0
+    );
+    controls.target.copy(ball.mesh.position);
   }
 
   if (gameState.phase === 'power') {
